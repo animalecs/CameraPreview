@@ -4,7 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.graphics.SurfaceTexture;
+import android.hardware.SensorManager;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -18,8 +20,13 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Size;
+import android.view.OrientationEventListener;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.view.animation.DecelerateInterpolator;
+import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.alex.camerapreview.R;
 
@@ -41,6 +48,12 @@ public class MainActivity extends Activity {
     android.hardware.camera2.CaptureRequest.Builder captureRequestBuilder;
     CaptureRequest captureRequest;
     CameraCaptureSession cameraCaptureSession;
+    ImageView imgFlashLight, imgChangeCamera;
+    OrientationEventListener mOrientationListener;
+    public enum Rotation {
+        PORTRAIT, LANDSCAPE, REVERSE_LANDSCAPE
+    }
+    Rotation imgFlashlightRotation = Rotation.PORTRAIT;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,8 +64,76 @@ public class MainActivity extends Activity {
         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_REQUEST_CODE);
 
         cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        //start with the back camera
         cameraFacing = CameraCharacteristics.LENS_FACING_BACK;
         textureView = (TextureView)findViewById(R.id.textureView);
+        imgFlashLight = (ImageView)findViewById(R.id.imgFlashlight);
+        imgChangeCamera = (ImageView)findViewById(R.id.imgChangeCamera);
+
+        mOrientationListener = new OrientationEventListener(this,
+                SensorManager.SENSOR_DELAY_NORMAL) {
+
+            @Override
+            public void onOrientationChanged(int orientation) {
+                //maybe on a flat surface, nothing to do
+                if (orientation == OrientationEventListener.ORIENTATION_UNKNOWN)
+                    return;
+
+                if (orientation < 45 || orientation > 315) {
+                    //0 degrees
+                    if(imgFlashlightRotation != Rotation.PORTRAIT){
+                        imgFlashlightRotation = Rotation.PORTRAIT;
+                        imgFlashLight.animate().rotation(0).start();
+                    }
+
+                }
+                else if (orientation < 135) {
+                    //90 degrees
+                    if(imgFlashlightRotation != Rotation.LANDSCAPE){
+                        imgFlashlightRotation = Rotation.LANDSCAPE;
+                        imgFlashLight.animate().rotation(-90).start();
+                    }
+                }
+                else if (orientation < 225) {
+                    //180 degrees
+
+                }
+                else
+                {
+                    if(imgFlashlightRotation != Rotation.REVERSE_LANDSCAPE){
+                        imgFlashlightRotation = Rotation.REVERSE_LANDSCAPE;
+                        imgFlashLight.animate().rotation(90).start();
+                    }
+                }
+
+
+
+            }
+        };
+        if (mOrientationListener.canDetectOrientation() == true) {
+            mOrientationListener.enable();
+        } else {
+            mOrientationListener.disable();
+        }
+
+
+
+        imgChangeCamera.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                closeCamera();
+                if(cameraFacing == CameraCharacteristics.LENS_FACING_BACK) {
+                    cameraFacing = CameraCharacteristics.LENS_FACING_FRONT;
+                    imgChangeCamera.setImageResource(R.drawable.ic_camera_rear_white_24dp);
+                }
+                else {
+                    cameraFacing = CameraCharacteristics.LENS_FACING_BACK;
+                    imgChangeCamera.setImageResource(R.drawable.ic_camera_front_white_24dp);
+                }
+                setUpCamera();
+                openCamera();
+            }
+        });
 
         surfaceTextureListener = new TextureView.SurfaceTextureListener() {
             @Override
@@ -213,6 +294,18 @@ public class MainActivity extends Activity {
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mOrientationListener.disable();
+    }
+
+
+
+    private void turnFlashLightOn() {
+
     }
 
     private void openBackgroundThread() {
